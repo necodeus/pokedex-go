@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/necodeus/pokedex-go/internal/pokecache"
 )
 
 func cleanInput(text string) []string {
@@ -49,35 +51,51 @@ type LocationAreaResponse struct {
 	} `json:"results"`
 }
 
-func getLocationAreas(url string) (*LocationAreaResponse, error) {
+func getLocationAreas(url string, cache *pokecache.Cache) (*LocationAreaResponse, error) {
 	if url == "" {
 		url = "https://pokeapi.co/api/v2/location-area"
 	}
 
+	if cachedData, found := cache.Get(url); found {
+		var cachedResponse LocationAreaResponse
+		err := json.Unmarshal(cachedData, &cachedResponse)
+		if err != nil {
+			return nil, err
+		}
+		return &cachedResponse, nil
+	}
+
+	fmt.Println("=======================================================")
+	fmt.Println("Sending request to", url)
+	fmt.Println("=======================================================")
+
 	res, err := http.Get(url)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	body, err := io.ReadAll(res.Body)
 	res.Body.Close()
 	if res.StatusCode != 200 {
-		log.Fatalf("unexpected status code: %d", res.StatusCode)
+		return nil, err
 	}
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	var data LocationAreaResponse
 	err = json.Unmarshal(body, &data)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
+
+	// add the response to the cache
+	cache.Add(url, body)
 
 	return &data, nil
 }
 
 func commandMap(config *config) error {
-	data, err := getLocationAreas(config.Next)
+	data, err := getLocationAreas(config.Next, config.Cache)
 	if err != nil {
 		return err
 	}
@@ -97,7 +115,7 @@ func commandMapBack(config *config) error {
 		fmt.Println("you're on the first page")
 	}
 
-	data, err := getLocationAreas(config.Previous)
+	data, err := getLocationAreas(config.Previous, config.Cache)
 	if err != nil {
 		return err
 	}
@@ -115,6 +133,7 @@ func commandMapBack(config *config) error {
 type config struct {
 	Next     string
 	Previous string
+	Cache    *pokecache.Cache
 }
 
 var commands map[string]cliCommand
@@ -147,7 +166,9 @@ func main() {
 	// wait for user input
 	scanner := bufio.NewScanner(os.Stdin)
 
-	cfg := config{}
+	cfg := config{
+		Cache: pokecache.NewCache(10 * time.Second), // create a new cache with a 10 second interval
+	}
 
 	for {
 		fmt.Print("Pokedex > ")
