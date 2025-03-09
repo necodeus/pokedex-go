@@ -452,6 +452,20 @@ func commandInspect(config *config, args []string) error {
 	return nil
 }
 
+func commandPokedex(config *config, args []string) error {
+	if len(config.Pokemon) == 0 {
+		fmt.Println("You haven't caught any Pokémon yet!")
+		return nil
+	}
+
+	fmt.Println("Your Pokedex:")
+	for name := range config.Pokemon {
+		fmt.Printf(" - %s\n", name)
+	}
+
+	return nil
+}
+
 type config struct {
 	Next     string
 	Previous string
@@ -498,6 +512,11 @@ func main() {
 			name:        "inspect",
 			description: "Displays the details of a caught Pokémon",
 			callback:    commandInspect,
+		},
+		"pokedex": {
+			name:        "pokedex",
+			description: "Displays names of caught Pokémon",
+			callback:    commandPokedex,
 		},
 	}
 
