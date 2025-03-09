@@ -1,21 +1,32 @@
 package main
 
 import (
-	"fmt"
+	"bufio"
+	"os"
 	"strings"
 )
 
 func cleanInput(text string) []string {
-	trimmed := strings.TrimSpace(text)
+	text = strings.TrimSpace(text) // remove leading and trailing spaces
+	text = strings.ToLower(text)   // convert to lowercase
 
-	words := strings.Fields(trimmed)
-	for i := range words {
-		words[i] = strings.ToLower(words[i])
-	}
-
-	return words
+	return strings.Fields(text) // split the text into words
 }
 
 func main() {
-	fmt.Println("Hello, World!")
+	// wait for user input
+	scanner := bufio.NewScanner(os.Stdin)
+
+	for {
+		print("Pokedex > ")
+
+		// read the input
+		scanner.Scan()
+		input := scanner.Text()
+
+		words := cleanInput(input)
+		if len(words) > 0 {
+			print("Your command was: " + words[0] + "\n")
+		}
+	}
 }
