@@ -23,16 +23,16 @@ func cleanInput(text string) []string {
 type cliCommand struct {
 	name        string
 	description string
-	callback    func(*config) error
+	callback    func(*config, []string) error
 }
 
-func commandExit(config *config) error {
+func commandExit(config *config, args []string) error {
 	fmt.Println("Closing the Pokedex... Goodbye!")
 	os.Exit(0)
 	return nil
 }
 
-func commandHelp(config *config) error {
+func commandHelp(config *config, args []string) error {
 	fmt.Println("Welcome to the Pokedex!")
 	fmt.Printf("Usage:\n\n")
 	for _, command := range commands {
@@ -41,7 +41,7 @@ func commandHelp(config *config) error {
 	return nil
 }
 
-type LocationAreaResponse struct {
+type LocationAreasResponse struct {
 	Count    int    `json:"count"`
 	Next     string `json:"next"`
 	Previous string `json:"previous"`
@@ -51,13 +51,13 @@ type LocationAreaResponse struct {
 	} `json:"results"`
 }
 
-func getLocationAreas(url string, cache *pokecache.Cache) (*LocationAreaResponse, error) {
+func getLocationAreas(url string, cache *pokecache.Cache) (*LocationAreasResponse, error) {
 	if url == "" {
 		url = "https://pokeapi.co/api/v2/location-area"
 	}
 
 	if cachedData, found := cache.Get(url); found {
-		var cachedResponse LocationAreaResponse
+		var cachedResponse LocationAreasResponse
 		err := json.Unmarshal(cachedData, &cachedResponse)
 		if err != nil {
 			return nil, err
@@ -82,7 +82,7 @@ func getLocationAreas(url string, cache *pokecache.Cache) (*LocationAreaResponse
 		return nil, err
 	}
 
-	var data LocationAreaResponse
+	var data LocationAreasResponse
 	err = json.Unmarshal(body, &data)
 	if err != nil {
 		return nil, err
@@ -94,7 +94,97 @@ func getLocationAreas(url string, cache *pokecache.Cache) (*LocationAreaResponse
 	return &data, nil
 }
 
-func commandMap(config *config) error {
+type LocationAreaResponse struct {
+	ID                  int    `json:"id"`
+	Name                string `json:"name"`
+	GameIndex           int    `json:"game_index"`
+	EncounterMethodRate []struct {
+		EncounterMethod struct {
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		} `json:"encounter_method"`
+		VersionDetails []struct {
+			Rate    int `json:"rate"`
+			Version struct {
+				Name string `json:"name"`
+				URL  string `json:"url"`
+			} `json:"version"`
+		} `json:"version_details"`
+	} `json:"encounter_method_rates"`
+	Location struct {
+		Name string `json:"name"`
+		URL  string `json:"url"`
+	} `json:"location"`
+	Names []struct {
+		Name     string `json:"name"`
+		Language struct {
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		} `json:"language"`
+	} `json:"names"`
+	PokemonEncounters []struct {
+		Pokemon struct {
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		} `json:"pokemon"`
+		VersionDetails []struct {
+			Version struct {
+				Name string `json:"name"`
+				URL  string `json:"url"`
+			} `json:"version"`
+			MaxChance        int `json:"max_chance"`
+			EncounterDetails []struct {
+				MinLevel        int           `json:"min_level"`
+				MaxLevel        int           `json:"max_level"`
+				ConditionValues []interface{} `json:"condition_values"`
+				Chance          int           `json:"chance"`
+				Method          struct {
+					Name string `json:"name"`
+					URL  string `json:"url"`
+				} `json:"method"`
+			} `json:"encounter_details"`
+		} `json:"version_details"`
+	} `json:"pokemon_encounters"`
+}
+
+func getLocationArea(area string, cache *pokecache.Cache) (*LocationAreaResponse, error) {
+	url := fmt.Sprintf("https://pokeapi.co/api/v2/location-area/%s", area)
+
+	if cachedData, found := cache.Get(url); found {
+		var cachedResponse LocationAreaResponse
+		err := json.Unmarshal(cachedData, &cachedResponse)
+		if err != nil {
+			return nil, err
+		}
+		return &cachedResponse, nil
+	}
+
+	res, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode != 200 {
+		return nil, fmt.Errorf("error: %d", res.StatusCode)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	defer res.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	var data LocationAreaResponse
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		return nil, err
+	}
+
+	cache.Add(url, body)
+
+	return &data, nil
+}
+
+func commandMap(config *config, args []string) error {
 	data, err := getLocationAreas(config.Next, config.Cache)
 	if err != nil {
 		return err
@@ -110,7 +200,7 @@ func commandMap(config *config) error {
 	return nil
 }
 
-func commandMapBack(config *config) error {
+func commandMapBack(config *config, args []string) error {
 	if config.Previous == "" {
 		fmt.Println("you're on the first page")
 	}
@@ -125,6 +215,33 @@ func commandMapBack(config *config) error {
 
 	for _, result := range data.Results {
 		fmt.Println(result.Name)
+	}
+
+	return nil
+}
+
+func commandExplore(config *config, args []string) error {
+	if len(args) != 1 {
+		fmt.Println("Usage: explore <location_area>")
+		return nil
+	}
+
+	locationArea := args[0]
+
+	fmt.Printf("Exploring %s...\n", locationArea)
+	data, err := getLocationArea(locationArea, config.Cache)
+	if err != nil {
+		fmt.Println("No encounters found")
+		return nil
+	}
+
+	if len(data.PokemonEncounters) == 0 {
+		return nil
+	}
+
+	fmt.Println("Pokemon encounters:")
+	for _, encounter := range data.PokemonEncounters {
+		fmt.Printf(" - %s\n", encounter.Pokemon.Name)
 	}
 
 	return nil
@@ -161,6 +278,11 @@ func main() {
 			description: "Displays the previous page of location areas",
 			callback:    commandMapBack,
 		},
+		"explore": {
+			name:        "explore",
+			description: "Displays the Pokémon located in a location area",
+			callback:    commandExplore,
+		},
 	}
 
 	// wait for user input
@@ -191,7 +313,7 @@ func main() {
 		}
 
 		// execute the command
-		err := command.callback(&cfg)
+		err := command.callback(&cfg, words[1:])
 		if err != nil {
 			fmt.Println("Error executing command:", err)
 		}
