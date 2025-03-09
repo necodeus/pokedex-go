@@ -423,6 +423,35 @@ func commandCatch(config *config, args []string) error {
 	return nil
 }
 
+func commandInspect(config *config, args []string) error {
+	if len(args) != 1 {
+		fmt.Println("Usage: inspect <pokemon>")
+		return nil
+	}
+
+	pokemon := args[0]
+
+	data, ok := config.Pokemon[pokemon]
+	if !ok {
+		fmt.Println("you have not caught that pokemon")
+		return nil
+	}
+
+	fmt.Printf("Name: %s\n", data.Name)
+	fmt.Printf("Height: %d\n", data.Height)
+	fmt.Printf("Weight: %d\n", data.Weight)
+	fmt.Println("Stats:")
+	for _, stat := range data.Stats {
+		fmt.Printf("  -%s: %d\n", stat.Stat.Name, stat.BaseStat)
+	}
+	fmt.Println("Types:")
+	for _, slot := range data.Types {
+		fmt.Printf("  - %s\n", slot.Type.Name)
+	}
+
+	return nil
+}
+
 type config struct {
 	Next     string
 	Previous string
@@ -464,6 +493,11 @@ func main() {
 			name:        "catch",
 			description: "Catches a Pokémon",
 			callback:    commandCatch,
+		},
+		"inspect": {
+			name:        "inspect",
+			description: "Displays the details of a caught Pokémon",
+			callback:    commandInspect,
 		},
 	}
 
