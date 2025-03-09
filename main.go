@@ -66,10 +66,6 @@ func getLocationAreas(url string, cache *pokecache.Cache) (*LocationAreasRespons
 		return &cachedResponse, nil
 	}
 
-	fmt.Println("=======================================================")
-	fmt.Println("Sending request to", url)
-	fmt.Println("=======================================================")
-
 	res, err := http.Get(url)
 	if err != nil {
 		return nil, err
@@ -343,7 +339,7 @@ func commandMap(config *config, args []string) error {
 
 func commandMapBack(config *config, args []string) error {
 	if config.Previous == "" {
-		fmt.Println("you're on the first page")
+		fmt.Println("There is no previous page")
 	}
 
 	data, err := getLocationAreas(config.Previous, config.Cache)
@@ -372,15 +368,16 @@ func commandExplore(config *config, args []string) error {
 	fmt.Printf("Exploring %s...\n", locationArea)
 	data, err := getLocationArea(locationArea, config.Cache)
 	if err != nil {
-		fmt.Println("No encounters found")
+		fmt.Println("Exploration failed:", err)
 		return nil
 	}
 
 	if len(data.PokemonEncounters) == 0 {
+		fmt.Println("No Pokémon found in this location area")
 		return nil
 	}
 
-	fmt.Println("Pokemon encounters:")
+	fmt.Println("Pokémon found:")
 	for _, encounter := range data.PokemonEncounters {
 		fmt.Printf(" - %s\n", encounter.Pokemon.Name)
 	}
@@ -433,7 +430,7 @@ func commandInspect(config *config, args []string) error {
 
 	data, ok := config.Pokemon[pokemon]
 	if !ok {
-		fmt.Println("you have not caught that pokemon")
+		fmt.Println("You haven't caught this Pokémon yet!")
 		return nil
 	}
 
